@@ -1,8 +1,10 @@
 use std::cmp::max;
 use std::iter;
-use std::iter::Peekable;
+use std::iter::{Peekable, FromIterator};
 use std::mem;
 use std::ops::RangeInclusive;
+
+use unicode_normalization::UnicodeNormalization;
 
 use crate::ansi::{Color, CursorShape, NamedColor};
 use crate::config::Config;
@@ -243,6 +245,23 @@ impl RenderableCell {
             }
 
             is_match = true;
+        }
+
+        if cell.flags.contains(Flags::WIDE_CHAR) && cell.zerowidth().is_some() {
+            let mut combined = vec![cell.c];
+            cell.zerowidth().unwrap().iter().for_each(|value| combined.push(*value));
+            let normalized = String::from_iter(combined).chars().nfc().collect::<String>();
+            return RenderableCell {
+                character: normalized.chars().nth(0).expect("Normalized chars should not be empty"),
+                zerowidth: None,
+                line: cell.line,
+                column: cell.column,
+                fg: fg_rgb,
+                bg: bg_rgb,
+                bg_alpha,
+                flags: cell.flags,
+                is_match,
+            };
         }
 
         RenderableCell {
